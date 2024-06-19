@@ -1,0 +1,532 @@
+---
+title: " Data Vizulation - Reg:2311098"
+output: html_document
+date: "2024-04-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r cars}
+library(tidyverse)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+# load the Data 
+crime_data <- read.csv("crime23.csv")
+temp_data <- read.csv("temp2023.csv")
+
+
+temp_data_org <- temp_data
+
+```
+
+
+# merage two data set
+
+
+```{r }
+str(temp_data)
+temp_data$Date<-substr(temp_data$Date, start=1,stop=7)
+
+colnames(temp_data)[which(names(temp_data) == "Date")] <- "date"
+
+
+crime_data <- crime_data[, -which(names(crime_data) == "context")]
+temp_data <- temp_data[, -which(names(temp_data) == "PreselevHp")]
+temp_data <- temp_data[, -which(names(temp_data) == "SnowDepcm")]
+temp_data <- temp_data[, -which(names(temp_data) == "WindkmhDir")]
+```
+
+
+```{r }
+combined_df <- temp_data %>% group_by(date) %>% summarise_all(mean)
+
+
+merged_df <- merge(x = crime_data, y = combined_df, by = "date", all.x = TRUE)
+```
+
+
+```{r }
+
+summary(merged_df)
+```
+
+# Count N/A Coloumn
+```{r }
+Count_NA <- sapply(merged_df, function(x) sum(is.na(x)))
+```
+
+
+```{r }
+print(Count_NA)
+```
+#Find the duplicate columns
+
+```{r }
+
+find_duplicate_columns <- function(dataframe) {
+  num_columns <- ncol(dataframe)
+  duplicate_columns <- c()
+  
+  # Loop through each pair of columns
+  for (i in 1:(num_columns - 1)) {
+    for (j in (i + 1):num_columns) {
+      if (all(dataframe[, i] == dataframe[, j], na.rm = TRUE)) {
+        duplicate_columns <- union(duplicate_columns, names(dataframe)[j])
+      }
+    }
+  }
+    return(duplicate_columns)
+}
+
+
+duplicate_columns <- find_duplicate_columns(merged_df)
+print(paste("Duplicate Columns:", toString(duplicate_columns)))
+```
+# Remove the Unwanted Coloumn After Analysis 
+
+```{r}
+merged_df <- merged_df %>%
+  select(-location_subtype, -Precmm,lowClOct)
+head(merged_df)
+
+```
+
+
+#two coloumn was filled with Mean
+
+```{r}
+mean_Sun <- mean(merged_df$SunD1h, na.rm = TRUE)
+mean_low <- mean(merged_df$lowClOct, na.rm = TRUE)
+merged_df$SunD1h[is.na(merged_df$SunD1h)] <- mean_Sun
+merged_df$lowClOct[is.na(merged_df$lowClOct)] <- mean_low
+
+head(merged_df)
+```
+
+# If Any Empty Coloumn ,Filled with No data
+# Pre-processing was completed.
+
+```{r}
+merged_df$persistent_id[is.na(merged_df$persistent_id) | merged_df$persistent_id == ""] <- "no data"
+merged_df$outcome_status[is.na(merged_df$outcome_status) | merged_df$outcome_status == ""] <- "no data"
+head(merged_df)
+```
+
+1. two-way table of Category
+```{r}
+# Create a two-way table of Category vs. Street Name
+category_street_table <- table(merged_df$category, merged_df$outcome_status)
+
+# Print the two-way table
+print(category_street_table)
+
+# To add margins (total counts) to the table
+category_street_table_margins <- addmargins(category_street_table)
+
+# Print the table with margins
+print(category_street_table_margins[,1:3])
+```
+
+The analysis of crime incident outcomes highlights several systemic issues, particularly with violent crimes, which not only occur frequently but also face substantial hurdles in prosecution and investigation, as evidenced by 1,299 cases unable to be prosecuted and 247 still under investigation. A significant number of incidents across various crime types, such as shoplifting, criminal damage, and vehicle crime, end with no suspect identified, indicating potential gaps in surveillance and evidence collection. Public order offenses and theft-related crimes also show considerable unresolved cases, suggesting the need for improved investigative techniques and enhanced community and surveillance measures to bolster resolution rates.
+
+2. Bar Graph
+
+
+
+```{r}
+library(ggplot2)
+
+# Function to create a bar graph for a given column in a dataframe
+create_bar_graph <- function(data, column_name) {
+  # Use ggplot to create the bar graph
+  p <- ggplot(data, aes_string(x = column_name, fill = column_name)) +
+    geom_bar(stat = "count", position = "dodge") +
+    theme_minimal() +
+    labs(x = column_name, y = "Count") +
+    ggtitle(paste("Distribution of", column_name)) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x labels for readability
+
+  # Print the plot
+  print(p)
+}
+
+# Columns to create bar graphs for
+columns_to_plot <- c("category", "outcome_status" )
+
+# Loop through each column and create a bar graph
+for (column in columns_to_plot) {
+  create_bar_graph(merged_df, column)
+}
+```
+
+1.distribution of various crime categories
+
+The given bar chart illustrates the distribution of various crime categories. Here are the inferences that can be drawn from the chart:
+
+Most Frequent Crime: The category with the highest count is 'violent crime', indicated by the pink bar, suggesting it is the most frequently reported crime in the dataset.
+Least Frequent Crimes: 'Bicycle theft' and 'robbery' are among the least reported crimes, as they have relatively short bars on the chart.
+Middle Frequency Crimes: Other crime categories such as 'anti-social behaviour', 'burglary', 'criminal damage-arson', 'drugs', and 'public order' fall somewhere in the middle in terms of frequency.
+Potential Data Distribution: The spread of the data indicates that there are more instances of certain types of crime compared to others. This could reflect actual rates of these crimes, or it might be influenced by reporting rates and law enforcement practices.
+This chart can be helpful for law enforcement and public policy makers to understand which types of crimes are most prevalent and may require additional resources or targeted interventions. Additionally, the chart could inform community awareness and prevention programs. However, to draw more detailed conclusions, it would be necessary to have context such as the geographical location these data pertain to, the population size of the area, and the time period during which the data was collected.
+
+2. the distribution of outcomes for crime-related incidents
+
+The given bar chart illustrates the distribution of outcomes for crime-related incidents.The x-axis lists the distribution of outcome/action taken on the crimes.The y-axis shows the count for each category. The inferences drawn from this chart include:
+
+Most Common Outcome: The most common outcome is 'Investigation complete; no suspect identified', as represented by the tall turquoise bar. This suggests that for a significant number of incidents, the investigation was completed without identifying a suspect.
+Action Not in Public Interest: There are notable instances where 'Further action is not in the public interest' and 'Formal action is not in the public interest', indicating decisions were made not to pursue certain cases further based on a lack of public interest.
+Awaiting and Unavailable Updates: There are categories for 'Awaiting court outcome' and 'Status update unavailable', which imply that some cases are pending a court decision or there isn't enough information available to update the status of the case.
+Resolutions: 'Local resolution' and 'Offender given a caution' indicate some incidents were resolved locally or resulted in the offender receiving a caution.
+Less Frequent Outcomes: 'Unable to prosecute suspect' and 'Suspect charged as part of another case' are less frequent outcomes, but they still represent important parts of the crime resolution process.
+This distribution might reflect the efficiency of the investigative process, legal constraints, priorities in law enforcement, or other factors influencing crime resolution. It could also highlight areas where the criminal justice system is effective or where it may need improvement, such as in identifying suspects or pursuing prosecutions. Understanding the context of this data, including the location and time frame, would be essential for a thorough analysis.
+
+```{r}
+# Filter to top 10 streets by activity count
+streets <- names(sort(table(merged_df$street_name), decreasing = TRUE)[1:10])
+
+# Subset the data frame
+streets_data <- merged_df[merged_df$street_name %in% streets, ]
+
+# Create the plot
+ggplot(streets_data, aes(x = street_name, fill = category)) +
+  geom_bar(stat = "count", position = "dodge") +
+  theme_minimal() +
+  labs(x = "Street Name", y = "Count", title = "Category Distribution on Top Streets") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+3.Category Distribution on Top Streets
+
+The given bar chart illustrates the "Category Distribution on Top Streets". It displays the frequency of different types of crimes on various streets or locations. Each bar color represents a type of crime, with the legend on the right side mapping colors to crime categories.
+
+Inferences from the bar chart:
+
+- The most frequent category of crime across most streets is anti-social behavior, which is represented by the red bars.
+- The second most common crime appears to be violent crime, indicated by the dark blue bars, which is particularly prevalent on or near "Nightclub".
+- The street "On or near Nightclub" shows a significantly higher incidence of public order crimes (light purple bars) compared to other locations.
+- Bicycle theft (orange bars) has a lower occurrence across all streets shown.
+- The street "On or near Shopping Area" has a wide range of crimes but particularly stands out for shoplifting (green bars).
+- Other categories of crime like drugs, possession of weapons, and robbery have relatively low counts across the streets shown in this chart.
+- The occurrence of burglary (yellow bars) is fairly consistent across several streets, but it is not the dominant crime in any of the locations shown.
+- Vehicle crime (pink bars) appears notably on "On or near Parking Area", which is an expected trend given the nature of the location.
+
+The chart is useful for identifying crime hotspots and the types of crimes that are most common in certain areas. It can help law enforcement agencies to allocate resources effectively and to implement targeted crime prevention strategies.
+
+```{r}
+# Histogram for TemperatureCAvg
+ggplot(merged_df, aes(x = TemperatureCAvg)) +
+  geom_histogram(binwidth = 0.5, fill = "Red", color = "white") +
+  theme_minimal() +
+  labs(title = "Histogram of Average Temperature", x = "Average Temperature (C)", y = "Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Histogram for TemperatureCMax
+ggplot(merged_df, aes(x = TemperatureCMax)) +
+  geom_histogram(binwidth = 0.5, fill = "Green", color = "orange") +
+  theme_minimal() +
+  labs(title = "Histogram of Maximum Temperature", x = "Maximum Temperature (C)", y = "Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Histogram for TemperatureCMin
+ggplot(merged_df, aes(x = TemperatureCMin)) +
+  geom_histogram(binwidth = 0.5, fill = "blue", color = "black") +
+  theme_minimal() +
+  labs(title = "Histogram of Minimum Temperature", x = "Minimum Temperature (C)", y = "Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+4.The histogram gives an average temperature. The X-axis represents the average temperature in degrees Celsius, and the Y-axis represents the frequency of these average temperature occurrences. Here are some inferences from the histogram:
+
+- The data seems to show a bimodal distribution, with two peaks suggesting that there are two different temperature ranges that occur most frequently.
+- The most common average temperature range is around 8 degrees Celsius, as indicated by the tallest bar.
+- There is another peak at around 16 degrees Celsius, which is the second most common temperature range.
+- Temperatures around 10-14 degrees Celsius are less frequent compared to the two peaks.
+- The distribution suggests that there might be two seasons or climate patterns represented in the data, each with a different common average temperature.
+- The data does not follow a normal distribution, as it is not symmetrical around a central value but rather shows these two distinct peaks.
+- The histogram can be used to understand the climate trends of a region, and it may indicate that there are times or seasons when temperatures are consistently around 8 or 16 degrees Celsius.
+
+
+5. This histogram titled "Histogram of Maximum Temperature" in bright green bars, which represent the frequency of the maximum temperature values recorded in degrees Celsius.
+
+Inferences from the histogram:
+
+- The histogram shows a bimodal distribution with two peaks, indicating that there are two temperature ranges that occur most frequently as maximum temperatures.
+- The first peak occurs at approximately 8 degrees Celsius, where there is the highest frequency of maximum temperatures.
+- The second peak is at around 20 degrees Celsius, which is also a significant frequency but slightly lower than the first peak.
+- The frequency of maximum temperatures in the intermediate range between these two peaks, specifically around 12 to 16 degrees Celsius, is comparatively lower.
+- The lowest recorded frequencies are around the 14 and 18 degrees Celsius marks.
+- This pattern suggests that the region from where this data was taken may experience two distinct weather patterns or seasons where the maximum temperatures commonly reach around 8 degrees Celsius in one and around 20 degrees Celsius in the other.
+- The data points to a climate that does not have a normal distribution of maximum temperatures but rather has specific temperature ranges that are more common.
+- This information can be used for a variety of purposes, such as climate analysis, planning agricultural activities, or energy management.
+
+6. The histogram titled "Histogram of Minimum Temperature" with deep blue bars. These bars represent the frequency at which certain minimum temperature values, measured in degrees Celsius, occur.
+
+Here are some inferences that can be drawn from the histogram:
+
+- The histogram appears to display a multimodal distribution, suggesting that there are several different temperature ranges that are commonly recorded as minimum temperatures.
+- There's a notable peak at approximately 5 degrees Celsius, which seems to be the most frequent minimum temperature recorded.
+- Another significant peak is seen around 10 degrees Celsius, although it is less frequent than the peak at 5 degrees Celsius.
+- The frequency of minimum temperatures decreases significantly for temperatures in the ranges of around 2.5, 7.5, and 12.5 degrees Celsius.
+- The data suggests that the area from which this temperature data was collected might experience cold spells or seasons where the minimum temperatures often fall to around 5 degrees Celsius or 10 degrees Celsius.
+- Unlike the previous histograms provided, which were for average and maximum temperatures, this histogram for minimum temperatures shows that certain lower temperatures are particularly common, with less frequency in the intermediate temperature ranges.
+- This information could be useful for understanding the cold-weather patterns of a region, preparing for frost events, planning heating needs, or other activities that are sensitive to low-temperature extremes.
+
+
+
+```{r}
+create_Violin_graph <- function(data, Violin_name) {
+  # Directly use the column without reshaping data
+  p_Violin <- ggplot(data, aes_string(x = factor(1), y = Violin_name)) +
+    geom_violin(trim = FALSE, fill = "red") +  # Set the fill color to green
+    labs(title = paste("Violin Plot of", Violin_name), x = "", y = Violin_name) +
+    theme_minimal() +
+    theme(axis.text.x = element_blank())  # Remove x-axis text as it's not meaningful here
+
+  # Print the plot
+  print(p_Violin)
+}
+
+# Specify the columns to plot
+columns_to_plot <- c("TemperatureCAvg", "TemperatureCMax", "WindkmhInt", "PresslevHp", "TotClOct")
+
+# Loop through each column and create a violin plot
+for (col_vin in columns_to_plot) {
+    create_Violin_graph(merged_df, col_vin)
+}
+
+```
+Violin Plot of TemperatureCAvg
+
+7.The violin plot titled "Violin Plot of TemperatureCAvg," with the data represented in a bold red color. The vertical axis is labeled "TemperatureCAvg," likely denoting the average temperature in degrees Celsius, while the horizontal aspect of the plot is unlabeled, which is typical for a violin plot as it represents the density of the data points at different temperature values.
+
+Here are some inferences from the violin plot:
+
+- The widest parts of the violin plot indicate the temperature ranges with the highest density of data points. For this plot, the widest sections occur around the 10 and 15 degrees Celsius marks, suggesting these temperatures occur most frequently.
+- The plot shows a bimodal distribution of temperatures, with two distinct peaks in frequency, one just below 10 degrees Celsius and another just above 15 degrees Celsius.
+- The "necks" of the violin, where the plot narrows, represent lower density of data points, which in this case is around 5 degrees and 20 degrees Celsius.
+- The pointed ends of the violin plot suggest that temperatures beyond these points are less frequent in the dataset.
+- Unlike a box plot that would show median and quartiles, the violin plot provides a fuller picture of the distribution, including the potential for multiple modes (peaks) and the density of data across the range.
+
+This visualization would be useful for understanding the distribution of average temperatures in a dataset, possibly over time or across different locations, and could inform decisions based on temperature patterns.
+
+Violin Plot of TemperatureCMax
+
+8.The violin plot titled "Violin Plot of TemperatureCMax." This plot visualizes the distribution of the maximum temperatures (presumably in degrees Celsius) in a dataset. Here are some observations and inferences:
+
+- The distribution is bimodal, with two areas of high density at around 10°C and 20°C, where the plot is the widest. This indicates that these temperatures are the most frequently recorded maximum temperatures in the dataset.
+- The area between the two peaks, around the 15°C mark, is less dense compared to the peaks, suggesting that maximum temperatures around 15°C occur less frequently.
+- The "necks" or narrow parts of the violin at around 5°C and above 20°C show that there are fewer days with maximum temperatures in these ranges.
+- The sharp points at the top and bottom of the plot indicate that there are very few days with maximum temperatures below 5°C and above 25°C.
+
+The bimodal nature of the plot could suggest a climate with distinct warm and cool seasons, where the maximum temperatures tend to cluster around two different values depending on the season. The data visualized in this way can be particularly informative for understanding temperature variations and patterns over time.
+
+
+Violin Plot of WindkmhInt
+
+9. The violin plot titled "Violin Plot of WindkmhInt." The y-axis, labeled "WindkmhInt," presumably refers to wind speed in kilometers per hour, interpreted as integer values.
+
+Inferences from the violin plot:
+
+- The plot has a multimodal distribution, with multiple peaks indicating the most common wind speeds recorded in the dataset.
+- The widest points of the plot, indicating the highest density of data, are around 15, 18, and just above 20 km/h. These are the wind speeds that occur most frequently.
+- The thinnest areas of the plot, indicating lower density, are between these common wind speeds, around 16 and 19 km/h, and less frequently at speeds below 15 km/h or above 21 km/h.
+- The sharp points at the top and bottom of the plot suggest that very low and very high wind speeds are relatively rare.
+
+This plot could be useful for meteorologists, sailors, or other professionals who need to understand the distribution of wind speeds for planning or safety purposes. It suggests that there are certain wind speeds that are much more common than others, which could be characteristic of the local climate or specific to the time period the data covers.
+
+
+Violin Plot of PresslevHp
+
+10.The violin plot titled "Violin Plot of PresslevHp." The y-axis is labeled "PresslevHp," which could stand for pressure level in hectopascals (hPa), a unit of pressure measurement commonly used in meteorology.
+
+Inferences from the violin plot:
+
+- The distribution of pressure levels appears to be multimodal, with several peaks, indicating multiple common pressure levels in the dataset.
+- There are prominent peaks at approximately 1015 hPa and 1025 hPa, where the plot is widest, showing that these pressure levels occur most frequently.
+- The thinnest areas of the plot, around 1010 hPa, 1020 hPa, and 1030 hPa, indicate less frequent occurrences of these pressure levels.
+- The tails at the ends of the plot indicate that extremely low or high-pressure levels are rare.
+
+From the shape of the violin plot, we can deduce that the data set has distinct groupings of atmospheric pressure readings. Such information is essential for understanding weather patterns, as atmospheric pressure is closely related to weather conditions. This plot could help in forecasting weather changes and could be especially relevant for meteorological studies.
+
+
+Violin Plot of TotClOct
+11. The violin plot titled "Violin Plot of TotClOct," with the y-axis labeled "TotClOct," which could stand for a measurement or data that's been abbreviated or coded, but without context, the exact meaning is unclear. It might refer to total cloud cover in octas, which is a unit of measurement for cloud cover.
+
+Inferences from the violin plot:
+
+- The distribution shown by the plot is multimodal, suggesting that there are several common values or ranges for the data being measured.
+- The most substantial width of the plot is around the value 5 on the y-axis, indicating that this is the most common value or range in the dataset.
+- Lesser peaks can be seen at approximately values 4, 6, and 7, suggesting that these values also occur with some frequency, but less so than the value around 5.
+- The thin sections of the plot around the values 4.5 and 6.5 indicate fewer occurrences of these values.
+
+If the y-axis refers to cloud cover, this plot might suggest that a cloud cover of 5 octas is the most common, with covers of 4, 6, and 7 octas also frequently occurring, though to a lesser extent. This information could be valuable for meteorological analysis or for any application where cloud cover is a significant factor, such as astronomy or agriculture.
+
+
+
+```{r}
+# Find top 10 streets based on frequency
+top_streets <- merged_df %>%
+  count(street_name) %>%
+  top_n(10) %>%
+  pull(street_name)
+
+# Find top 10 categories based on frequency
+top_categories <- merged_df %>%
+  count(category) %>%
+  top_n(10) %>%
+  pull(category)
+
+# Filter the original dataframe
+top_data <- merged_df %>%
+  filter(street_name %in% top_streets & category %in% top_categories)
+# Generate the scatter plot with the top data
+ggplot(top_data, aes(x = as.factor(street_name), y = as.factor(category))) +
+  geom_point(position = position_jitter(width = 0.2, height = 0.2), alpha = 0.5) +
+  labs(title = "Scatter Plot of Top 10 Streets and Categories",
+       x = "Street Name", y = "Category") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Adjust the text angle for better readability
+```
+
+12. Scatter Plot of Top 10 Streets and Categories 
+
+
+Inferences from the scatter plot:
+
+- Each point represents an occurrence of a crime in the respective category and street.
+- Anti-social behaviour seems to be the most commonly reported crime category across almost all the streets, as evidenced by the high density of points along that row.
+- Violent crime is another category that has a significant number of occurrences across several streets, with a particularly high concentration on or near the nightclub.
+- Other types of crimes, such as vehicle crime, shoplifting, and public-order crimes, are also quite frequent in certain locations like the shopping area and near the nightclub.
+- Some categories of crime, such as burglary, bicycle theft, and criminal damage-arson, have a more even distribution across the locations, without a strong concentration in any particular street.
+- The "on or near parking area" location has a relatively high occurrence of vehicle crime, which is expected given the nature of the location.
+- Conversely, some crime categories, like drugs and other-theft, appear less frequently across the streets.
+
+Overall, the scatter plot can help identify which types of crimes are most prevalent in specific areas, potentially aiding law enforcement and community leaders in resource allocation and preventive measure planning.
+```{r}
+# Select only numeric columns
+numeric_data <- merged_df[sapply(merged_df, is.numeric)]
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Print the correlation matrix
+print(correlation_matrix)
+```
+
+
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Melt the correlation matrix into a long format
+correlation_data <- melt(correlation_matrix)
+
+# Create a heatmap
+ggplot(correlation_data, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "yellow", midpoint = 0) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+13 .The image depicts a heatmap, which is a data visualization technique that shows magnitude of a phenomenon as color in two dimensions. The variation of colors often signifies the value or magnitude of the data points. Here, the heatmap includes various weather-related variables (such as visibility, sun duration, cloud cover, pressure level, wind speed, temperature, etc.) and potentially location-related identifiers (like station ID, street ID, longitude, and latitude).
+
+Inferences from the heatmap:
+
+- The color scale on the right indicates that the colors range from red (high value of 1.0) to yellow (mid value of 0.5) to purple (low or negative value of -0.5).
+- Red squares indicate a strong positive correlation or high value, while purple squares indicate a strong negative correlation or low value. Yellow squares are neutral or moderate values.
+- There seems to be a strong positive relationship or similarity (red squares) between some of the weather variables, such as "TemperatureCMax" with "TemperatureCAvg" and "TemperatureCMin".
+- The presence of some dark purple squares indicates strong negative correlations between certain variables.
+- The correlation or value of latitude ("lat") and longitude ("long") with the other variables seems to be neutral to low, as indicated by yellow to purple colors.
+- Some variables, such as "id" and "station_ID," might represent categorical data, given the uniform color across their rows and columns, suggesting no variation or no correlation with other variables.
+- The heatmap could be used for various purposes, including identifying patterns in the data, checking for multicollinearity before building statistical models, or to understand the relationships between different variables.
+
+
+
+```{r}
+temp_data <- temp_data_org
+temp_data$Date <- as.Date(temp_data$Date)
+wind_gust <- ggplot(temp_data, aes(x = Date, y = VisKm)) +  geom_line(color = "black") +  geom_smooth(se = TRUE, color = "yellow") +  labs(title = "Time Series Plot of Sun Duration", x = "Date", y = "Visibility (Km)")
+
+
+wind_gust
+```
+
+
+
+The plot shows the average sun duration in kilometers (km) over a one-year period. The x-axis is labeled "Date" and shows a range from January 2023 to January 2024. The y-axis is labeled "Visibility (Km)" and goes from 0 to 60 kilometers. The yellow line in the center of the plot depicts the average sun duration over the year.
+"Violent-crime" is the most common type of crime in Colchester Town, with a total of 2633 incidents. This can indicate that the area may have a higher rate of violent crime compared to other areas.
+
+The least common type of crime is "possession of weapons" with only 74 incidents. This can indicate that Colchester Town has a lower rate of weapon possession compared to other areas.
+"On or near A133" has the highest number of crimes, suggesting that this street may have a higher rate of crime compared to other streets in the town. On the other hand, "On or near A134" has the least number of crimes, suggesting that this street may have a lower rate of crime compared to other streets in the town.
+"On or near A134" has no incidents of certain types of crime, such as "anti-social-behaviour", "bicycle-theft", "burglary", "criminal damage and arson", "drugs", "other-crime", "other-theft", "public-order", "robbery", "shoplifting", "theft-from-the-person", "vehicle-crime", and "violent-crime". This suggests that this street may have a lower rate of these types of crime compared to other streets in the town.
+Overall, the data indicates that the area with the highest number of crimes is "On or near A133", and the area with the least number of crimes is "On or near A134". This can suggest that there may be a higher concentration of crime in some streets compared to others in the town.
+Based on these insights, it is possible to infer that there may be a correlation between the concentration of crime in certain streets and the occurrence of different types of crime. Additionally, the data can also suggest that the areas with the highest number of certain types of crime may be associated with a higher rate of these types of crime compared to other areas in the town.
+
+In summary, the provided data can offer valuable insights into the crime patterns in Colchester Town. It highlights the most common types of crime, the least common types of crime, and the streets with the highest and lowest numbers of crimes. This information can be used to inform strategies for crime prevention and reduction in the town.
+
+
+
+
+```{r}
+
+library(leaflet)
+
+# Assuming 'merged_df' contains your data
+
+# Convert 'category' to factor
+merged_df$category <- factor(merged_df$category)
+
+# Define a vector of 14 distinct colors
+mycolors <- rainbow(14)
+
+# Create a leaflet map
+demo_map <- leaflet(merged_df) %>%
+  addTiles() %>%  # Add default OpenStreetMap tiles
+  addCircleMarkers(
+    lng = ~long,    # Longitude
+    lat = ~lat,     # Latitude
+    color = ~mycolors,  # Color by crime category
+    popup = ~category,  # Popup text
+    radius = 3,         # Marker radius
+    fillOpacity = 0.7   # Marker fill opacity
+  ) %>%
+  addLegend(
+    position = "bottomleft",    # Position of the legend
+    colors = mycolors,              # Assign 14 different colors
+    labels = levels(merged_df$category)  # Labels for legend
+  )
+
+# Display the map
+demo_map
+
+```
+
+
+It is a crime map of Colchester, England. Here are some inferences I can make based on the elements of the image:
+The context appears to be a list of different types of crimes, locations, and road names in Colchester and its surrounding areas. The list includes both geographic locations (such as Myland, High Woods, Braiswick, Bergholt, Greenstead, Hythe, Old Heath, and Wivenhoe) and specific roads (such as A12, B1508, Colne Cymbeline Way, Spring Lane, A137, Arwich Road, Fox Street, A1232, Brightlingsea Road, and B102.
+
+Crime Concentration: The map shows that crime is more concentrated in some areas of Colchester than others. For example, there are a large number of circles in the city center, and in the areas around Greenstead, Hythe, and Lexden.
+Crime Types: The legend in the bottom right corner of the image shows that the circles represent a variety of different types of crime, including anti-social behaviour, bicycle theft, burglary, criminal damage/arson, drugs, other crime, other theft, possession of weapons, public order, robbery, shoplifting, theft from the person, vehicle crime, and violent crime. The color of each circle corresponds to the type of crime, but the legend does not say which color corresponds to which type of crime.
+Possible Timeframe: The image does not show a timeframe for the crime data. It is possible that the data represents crimes that have been reported in the past week, month, or year.
+
+
+
+
+Conclusion:
+
+The data visualizations you provided offer a comprehensive look at crime and weather patterns in Colchester. The bar charts reveal that violent crime is the most common and bicycle theft is the least common. Areas near the nightclub show high rates of violent crime and public order offenses, while the shopping area has high shoplifting rates. The violin plots depict multimodal distributions for temperature, wind speed, and pressure levels, suggesting Colchester experiences distinct weather patterns. The scatter plot confirms that anti-social behavior is the most frequent crime across most streets. The heatmap, while lacking labels, allows for identifying potential correlations between weather variables. Finally, the crime map indicates a higher concentration of crime in the town center and areas around Greenstead, Hythe, and Lexden. Overall, this data can be valuable for law enforcement in allocating resources and for residents in understanding crime patterns.
+```
+
+
+
+
+
